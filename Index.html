@@ -91,19 +91,6 @@ tbody tr:hover td{background:var(--surface2)}
 </head>
 <body>
 
-<!-- SETUP -->
-<div id="setupScreen" class="setup-screen" style="display:none">
-  <div class="setup-card">
-    <div style="font-size:32px;margin-bottom:.75rem">🔧</div>
-    <h1>Configurar Supabase</h1>
-    <p>Ingresa tus credenciales de Supabase. Las encuentras en tu proyecto → <strong>Settings → API</strong>.</p>
-    <div class="field" style="margin-bottom:1rem"><label>URL del proyecto</label><input id="cfg_url" placeholder="https://xxxxxxxxxxxx.supabase.co"></div>
-    <div class="field" style="margin-bottom:1rem"><label>Anon / Public Key</label><input id="cfg_key" type="password" placeholder="eyJhbGciOiJIUzI1NiIs..."></div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px" onclick="saveConfig()">Conectar →</button>
-    <div class="setup-note">ℹ️ Tus credenciales se guardan solo en este navegador (localStorage) y se usan únicamente para conectar con tu propio proyecto de Supabase.</div>
-  </div>
-</div>
-
 <!-- APP -->
 <div class="app" id="mainApp" style="display:none">
   <header class="topbar">
@@ -113,7 +100,7 @@ tbody tr:hover td{background:var(--surface2)}
       <div class="stat-pill hide-sm"><strong id="tActivos">0</strong> activos</div>
       <div class="stat-pill hide-sm" id="alertPill" style="display:none;color:var(--danger)"><strong id="tBajos">0</strong> stock bajo</div>
       <button class="btn btn-sm" onclick="loadArticles()">↻ Actualizar</button>
-      <button class="btn btn-sm" onclick="resetConfig()" title="Cambiar credenciales">⚙</button>
+      
     </div>
   </header>
   <main class="main">
@@ -211,31 +198,12 @@ tbody tr:hover td{background:var(--surface2)}
 
 <script>
 const { createClient } = supabase;
+const SUPABASE_URL = "https://dlhdwtuqqaffgctumxqw.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsaGR3dHVxcWFmZmdjdHVteHF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNTc1MzcsImV4cCI6MjA5MTYzMzUzN30.iOUQMfBFLUQEZERHbgw1NhuLjrK6q70csGWBo0fWYUs";
 let sb=null, articles=[], filtered=[], editingId=null, newImgFile=null, sortCol='nombre', sortDir=1;
 
-function saveConfig(){
-  const url=document.getElementById('cfg_url').value.trim();
-  const key=document.getElementById('cfg_key').value.trim();
-  if(!url||!key){toast('Completa ambos campos','err');return;}
-  localStorage.setItem('sb_url',url);
-  localStorage.setItem('sb_key',key);
-  initApp();
-}
-function resetConfig(){
-  if(!confirm('¿Borrar configuración guardada?'))return;
-  localStorage.removeItem('sb_url');localStorage.removeItem('sb_key');
-  location.reload();
-}
 function initApp(){
-  const url=localStorage.getItem('sb_url')||'';
-  const key=localStorage.getItem('sb_key')||'';
-  if(!url||!key){
-    document.getElementById('setupScreen').style.display='flex';
-    document.getElementById('mainApp').style.display='none';
-    return;
-  }
-  sb=createClient(url,key);
-  document.getElementById('setupScreen').style.display='none';
+  sb=createClient(SUPABASE_URL, SUPABASE_KEY);
   document.getElementById('mainApp').style.display='flex';
   loadArticles();
 }
