@@ -4,18 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestión de Artículos</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root {
-  --bg:#0f1117;--surface:#181c27;--surface2:#1f2435;
-  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
-  --accent:#4f8ef7;--accent2:#7b61ff;
-  --success:#22c55e;--warning:#f59e0b;--danger:#ef4444;
-  --text:#e8eaf0;--muted:#8b90a0;--faint:#3a3f52;
-  --radius:10px;--radius-lg:16px;
-  --font:'DM Sans',sans-serif;--mono:'DM Mono',monospace;
-}
+:root{--bg:#0f1117;--surface:#181c27;--surface2:#1f2435;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--accent:#4f8ef7;--accent2:#7b61ff;--success:#22c55e;--warning:#f59e0b;--danger:#ef4444;--text:#e8eaf0;--muted:#8b90a0;--faint:#3a3f52;--radius:10px;--radius-lg:16px;--font:'DM Sans',sans-serif;--mono:'DM Mono',monospace}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;line-height:1.6}
 .app{display:flex;flex-direction:column;min-height:100vh}
@@ -47,7 +39,7 @@ th{padding:10px 14px;text-align:left;color:var(--muted);font-size:11px;font-weig
 th.sortable{cursor:pointer;user-select:none}
 td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
 tr:last-child td{border-bottom:none}
-tbody tr{transition:background .1s}tbody tr:hover td{background:var(--surface2)}
+tbody tr:hover td{background:var(--surface2)}
 .thumb{width:38px;height:38px;border-radius:8px;object-fit:cover;border:1px solid var(--border);display:block}
 .thumb-ph{width:38px;height:38px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px}
 .code-tag{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--muted)}
@@ -89,18 +81,39 @@ tbody tr{transition:background .1s}tbody tr:hover td{background:var(--surface2)}
 .toast.show{transform:translateY(0);opacity:1}
 .toast.ok{border-color:rgba(34,197,94,.35);color:var(--success)}
 .toast.err{border-color:rgba(239,68,68,.35);color:var(--danger)}
+.setup-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:2rem}
+.setup-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:2rem;max-width:480px;width:100%}
+.setup-card h1{font-size:22px;font-weight:600;margin-bottom:.4rem}
+.setup-card p{color:var(--muted);font-size:14px;margin-bottom:1.5rem;line-height:1.6}
+.setup-note{font-size:12px;color:var(--muted);margin-top:1rem;line-height:1.6;background:var(--surface2);border-radius:8px;padding:.75rem 1rem;border:1px solid var(--border)}
 @media(max-width:768px){.topbar{padding:0 1rem;height:54px}.main{padding:1rem}.stat-pill.hide-sm{display:none}}
 </style>
 </head>
 <body>
-<div class="app">
+
+<!-- SETUP -->
+<div id="setupScreen" class="setup-screen" style="display:none">
+  <div class="setup-card">
+    <div style="font-size:32px;margin-bottom:.75rem">🔧</div>
+    <h1>Configurar Supabase</h1>
+    <p>Ingresa tus credenciales de Supabase. Las encuentras en tu proyecto → <strong>Settings → API</strong>.</p>
+    <div class="field" style="margin-bottom:1rem"><label>URL del proyecto</label><input id="cfg_url" placeholder="https://xxxxxxxxxxxx.supabase.co"></div>
+    <div class="field" style="margin-bottom:1rem"><label>Anon / Public Key</label><input id="cfg_key" type="password" placeholder="eyJhbGciOiJIUzI1NiIs..."></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px" onclick="saveConfig()">Conectar →</button>
+    <div class="setup-note">ℹ️ Tus credenciales se guardan solo en este navegador (localStorage) y se usan únicamente para conectar con tu propio proyecto de Supabase.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="mainApp" style="display:none">
   <header class="topbar">
     <div class="logo"><div class="logo-icon">📦</div><span>Artículos</span></div>
     <div class="topbar-right">
       <div class="stat-pill"><strong id="tTotal">0</strong> total</div>
       <div class="stat-pill hide-sm"><strong id="tActivos">0</strong> activos</div>
       <div class="stat-pill hide-sm" id="alertPill" style="display:none;color:var(--danger)"><strong id="tBajos">0</strong> stock bajo</div>
-      <button class="btn btn-sm" onclick="loadArticles()">↻</button>
+      <button class="btn btn-sm" onclick="loadArticles()">↻ Actualizar</button>
+      <button class="btn btn-sm" onclick="resetConfig()" title="Cambiar credenciales">⚙</button>
     </div>
   </header>
   <main class="main">
@@ -114,7 +127,7 @@ tbody tr{transition:background .1s}tbody tr:hover td{background:var(--surface2)}
       <select id="fStatus" style="width:auto;min-width:130px" onchange="filterTable()"><option value="">Todos los estados</option><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select>
     </div>
     <div class="table-wrap">
-      <div id="tableLoader" class="loader"><div class="spinner"></div> Cargando...</div>
+      <div id="tableLoader" class="loader"><div class="spinner"></div> Cargando artículos...</div>
       <table id="artTable" style="display:none">
         <thead><tr>
           <th>Img</th>
@@ -197,23 +210,44 @@ tbody tr{transition:background .1s}tbody tr:hover td{background:var(--surface2)}
 <div class="toast" id="toast"></div>
 
 <script>
-const API = '';
-let articles=[], filtered=[], editingId=null, imgFile=null, sortCol='nombre', sortDir=1;
+const { createClient } = supabase;
+let sb=null, articles=[], filtered=[], editingId=null, newImgFile=null, sortCol='nombre', sortDir=1;
 
-async function api(path, method='GET', body=null){
-  const opts={method,headers:{}};
-  if(body && !(body instanceof FormData)){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body);}
-  else if(body){opts.body=body;}
-  const res=await fetch(API+path,opts);
-  const data=await res.json();
-  if(!res.ok) throw new Error(data.error||'Error del servidor');
-  return data;
+function saveConfig(){
+  const url=document.getElementById('cfg_url').value.trim();
+  const key=document.getElementById('cfg_key').value.trim();
+  if(!url||!key){toast('Completa ambos campos','err');return;}
+  localStorage.setItem('sb_url',url);
+  localStorage.setItem('sb_key',key);
+  initApp();
+}
+function resetConfig(){
+  if(!confirm('¿Borrar configuración guardada?'))return;
+  localStorage.removeItem('sb_url');localStorage.removeItem('sb_key');
+  location.reload();
+}
+function initApp(){
+  const url=localStorage.getItem('sb_url')||'';
+  const key=localStorage.getItem('sb_key')||'';
+  if(!url||!key){
+    document.getElementById('setupScreen').style.display='flex';
+    document.getElementById('mainApp').style.display='none';
+    return;
+  }
+  sb=createClient(url,key);
+  document.getElementById('setupScreen').style.display='none';
+  document.getElementById('mainApp').style.display='flex';
+  loadArticles();
 }
 
 async function loadArticles(){
   showLoader(true);
-  try{ articles=await api('/api/articulos'); filtered=[...articles]; updateStats();buildCatFilter();filterTable(); }
-  catch(e){ toast('Error al cargar: '+e.message,'err'); }
+  try{
+    const{data,error}=await sb.from('articulos').select('*').order('created_at',{ascending:false});
+    if(error)throw error;
+    articles=data||[];filtered=[...articles];
+    updateStats();buildCatFilter();filterTable();
+  }catch(e){toast('Error al cargar: '+e.message,'err');}
   showLoader(false);
 }
 
@@ -222,33 +256,37 @@ async function saveArticle(){
   const codigo=document.getElementById('f_codigo').value.trim();
   const precio=parseFloat(document.getElementById('f_precio').value);
   if(!nombre||!codigo||isNaN(precio)){toast('Nombre, código y precio son obligatorios','err');return;}
-  const btn=document.getElementById('saveBtn');
-  btn.disabled=true;btn.textContent='Guardando...';
+  const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='Guardando...';
   try{
-    let imagen_url=editingId?(articles.find(a=>a.id==editingId)?.imagen_url||null):null;
-    if(imgFile){
-      const fd=new FormData();fd.append('imagen',imgFile);
-      const up=await api('/api/upload','POST',fd);
-      imagen_url=up.url;
+    let imagen_url=editingId?(articles.find(a=>a.id===editingId)?.imagen_url||null):null;
+    if(newImgFile){
+      const ext=newImgFile.name.split('.').pop();
+      const path=`${Date.now()}.${ext}`;
+      const{error:upErr}=await sb.storage.from('articulos-img').upload(path,newImgFile,{upsert:true});
+      if(upErr)throw upErr;
+      const{data:pub}=sb.storage.from('articulos-img').getPublicUrl(path);
+      imagen_url=pub.publicUrl;
     }
     const payload={nombre,codigo,
-      categoria:document.getElementById('f_categoria').value,
-      marca:document.getElementById('f_marca').value,
-      proveedor:document.getElementById('f_proveedor').value,
+      categoria:document.getElementById('f_categoria').value||null,
+      marca:document.getElementById('f_marca').value||null,
+      proveedor:document.getElementById('f_proveedor').value||null,
       costo:parseFloat(document.getElementById('f_costo').value)||0,
       precio,itbis:parseInt(document.getElementById('f_itbis').value),
       stock:parseInt(document.getElementById('f_stock').value)||0,
       stock_min:parseInt(document.getElementById('f_stock_min').value)||0,
       unidad:document.getElementById('f_unidad').value,
-      color:document.getElementById('f_color').value,
-      talla:document.getElementById('f_talla').value,
-      descripcion:document.getElementById('f_descripcion').value,
-      notas:document.getElementById('f_notas').value,
+      color:document.getElementById('f_color').value||null,
+      talla:document.getElementById('f_talla').value||null,
+      descripcion:document.getElementById('f_descripcion').value||null,
+      notas:document.getElementById('f_notas').value||null,
       estado:document.getElementById('f_estado').value,
       imagen_url
     };
-    if(editingId) await api('/api/articulos/'+editingId,'PUT',payload);
-    else await api('/api/articulos','POST',payload);
+    let err;
+    if(editingId){({error:err}=await sb.from('articulos').update(payload).eq('id',editingId));}
+    else{({error:err}=await sb.from('articulos').insert(payload));}
+    if(err)throw err;
     closeModal('modalForm');
     toast(editingId?'Artículo actualizado ✓':'Artículo guardado ✓','ok');
     await loadArticles();
@@ -257,9 +295,11 @@ async function saveArticle(){
 }
 
 async function deleteArticle(id,nombre){
-  if(!confirm(`¿Eliminar "${nombre}"?`))return;
-  try{await api('/api/articulos/'+id,'DELETE');toast('Eliminado','ok');await loadArticles();}
-  catch(e){toast('Error: '+e.message,'err');}
+  if(!confirm(`¿Eliminar "${nombre}"? Esta acción no se puede deshacer.`))return;
+  const{error}=await sb.from('articulos').delete().eq('id',id);
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('Artículo eliminado','ok');
+  await loadArticles();
 }
 
 function filterTable(){
@@ -272,7 +312,6 @@ function filterTable(){
   });
   applySort();renderTable();
 }
-
 function sortBy(col){sortCol===col?sortDir*=-1:(sortCol=col,sortDir=1);applySort();renderTable();}
 function applySort(){filtered.sort((a,b)=>{let va=a[sortCol]??'',vb=b[sortCol]??'';return typeof va==='number'?(va-vb)*sortDir:String(va).localeCompare(String(vb))*sortDir;});}
 
@@ -282,7 +321,7 @@ function renderTable(){
   empty.style.display='none';table.style.display='table';
   tbody.innerHTML=filtered.map(a=>{
     const low=a.stock_min>0&&a.stock<=a.stock_min;
-    const imgTag=a.imagen_url?`<img class="thumb" src="${API}${a.imagen_url}" loading="lazy">`:`<div class="thumb-ph">📦</div>`;
+    const imgTag=a.imagen_url?`<img class="thumb" src="${a.imagen_url}" loading="lazy">`:`<div class="thumb-ph">📦</div>`;
     const pf=(a.precio||0).toLocaleString('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2});
     return `<tr>
       <td>${imgTag}</td>
@@ -293,9 +332,9 @@ function renderTable(){
       <td>${a.stock} ${esc(a.unidad||'')}${low?` <span class="low-stock">⚠ bajo</span>`:''}</td>
       <td><span class="badge badge-${a.estado==='Activo'?'active':'inactive'}">${a.estado}</span></td>
       <td><div class="actions">
-        <button class="btn btn-sm" onclick="viewArticle(${a.id})">Ver</button>
-        <button class="btn btn-sm btn-primary" onclick="openEdit(${a.id})">Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteArticle(${a.id},'${esc(a.nombre)}')">✕</button>
+        <button class="btn btn-sm" onclick="viewArticle('${a.id}')">Ver</button>
+        <button class="btn btn-sm btn-primary" onclick="openEdit('${a.id}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteArticle('${a.id}','${esc(a.nombre)}')">✕</button>
       </div></td>
     </tr>`;
   }).join('');
@@ -305,22 +344,20 @@ function buildCatFilter(){const sel=document.getElementById('fCat'),prev=sel.val
 function updateStats(){document.getElementById('tTotal').textContent=articles.length;document.getElementById('tActivos').textContent=articles.filter(a=>a.estado==='Activo').length;const b=articles.filter(a=>a.stock_min>0&&a.stock<=a.stock_min).length;document.getElementById('tBajos').textContent=b;document.getElementById('alertPill').style.display=b?'':'none';}
 function showLoader(v){document.getElementById('tableLoader').style.display=v?'flex':'none';if(v){document.getElementById('artTable').style.display='none';document.getElementById('emptyState').style.display='none';}}
 
-function openNew(){editingId=null;imgFile=null;document.getElementById('formTitle').textContent='Nuevo artículo';document.getElementById('saveBtn').textContent='Guardar artículo';clearForm();document.getElementById('modalForm').style.display='flex';}
-function openEdit(id){const a=articles.find(x=>x.id==id);if(!a)return;editingId=id;imgFile=null;document.getElementById('formTitle').textContent='Editar: '+a.nombre;document.getElementById('saveBtn').textContent='Guardar cambios';setForm(a);const box=document.getElementById('imgBox');if(a.imagen_url){box.innerHTML=`<img src="${API}${a.imagen_url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><div class="overlay"><span>📷</span><span>Cambiar imagen</span></div>`;}else{resetImgBox();}document.getElementById('modalForm').style.display='flex';}
-function viewArticle(id){const a=articles.find(x=>x.id==id);if(!a)return;document.getElementById('vNombre').textContent=a.nombre;const img=document.getElementById('vImg');if(a.imagen_url){img.src=API+a.imagen_url;img.style.display='block';}else{img.style.display='none';}const fields=[['Código',a.codigo],['Categoría',a.categoria||'—'],['Marca',a.marca||'—'],['Proveedor',a.proveedor||'—'],['Precio costo',`RD$ ${(a.costo||0).toLocaleString('es-DO',{minimumFractionDigits:2})}`],['Precio venta',`RD$ ${(a.precio||0).toLocaleString('es-DO',{minimumFractionDigits:2})}`],['ITBIS',(a.itbis||0)+'%'],['Stock',`${a.stock} ${a.unidad||''}`],['Stock mínimo',`${a.stock_min} ${a.unidad||''}`],['Color',a.color||'—'],['Talla',a.talla||'—'],['Estado',a.estado],['Descripción',a.descripcion||'—'],['Notas',a.notas||'—'],['Creado',a.created_at],['Actualizado',a.updated_at]];document.getElementById('vBody').innerHTML=fields.map(([k,v])=>`<div class="kv"><span class="k">${k}</span><span class="v">${esc(String(v))}</span></div>`).join('');document.getElementById('vEditBtn').onclick=()=>{closeModal('modalView');openEdit(id);};document.getElementById('modalView').style.display='flex';}
-
+function openNew(){editingId=null;newImgFile=null;document.getElementById('formTitle').textContent='Nuevo artículo';document.getElementById('saveBtn').textContent='Guardar artículo';clearForm();document.getElementById('modalForm').style.display='flex';}
+function openEdit(id){const a=articles.find(x=>x.id===id);if(!a)return;editingId=id;newImgFile=null;document.getElementById('formTitle').textContent='Editar: '+a.nombre;document.getElementById('saveBtn').textContent='Guardar cambios';setForm(a);const box=document.getElementById('imgBox');if(a.imagen_url){box.innerHTML=`<img src="${a.imagen_url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><div class="overlay"><span>📷</span><span>Cambiar imagen</span></div>`;}else{resetImgBox();}document.getElementById('modalForm').style.display='flex';}
+function viewArticle(id){const a=articles.find(x=>x.id===id);if(!a)return;document.getElementById('vNombre').textContent=a.nombre;const img=document.getElementById('vImg');if(a.imagen_url){img.src=a.imagen_url;img.style.display='block';}else{img.style.display='none';}const fields=[['Código',a.codigo],['Categoría',a.categoria||'—'],['Marca',a.marca||'—'],['Proveedor',a.proveedor||'—'],['Precio costo',`RD$ ${(a.costo||0).toLocaleString('es-DO',{minimumFractionDigits:2})}`],['Precio venta',`RD$ ${(a.precio||0).toLocaleString('es-DO',{minimumFractionDigits:2})}`],['ITBIS',(a.itbis||0)+'%'],['Stock',`${a.stock} ${a.unidad||''}`],['Stock mínimo',`${a.stock_min} ${a.unidad||''}`],['Color',a.color||'—'],['Talla',a.talla||'—'],['Estado',a.estado],['Descripción',a.descripcion||'—'],['Notas',a.notas||'—'],['Creado',new Date(a.created_at).toLocaleString('es-DO')],['Actualizado',new Date(a.updated_at).toLocaleString('es-DO')]];document.getElementById('vBody').innerHTML=fields.map(([k,v])=>`<div class="kv"><span class="k">${k}</span><span class="v">${esc(String(v))}</span></div>`).join('');document.getElementById('vEditBtn').onclick=()=>{closeModal('modalView');openEdit(id);};document.getElementById('modalView').style.display='flex';}
 function closeModal(id){document.getElementById(id).style.display='none';}
 document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.style.display='none';}));
-
 const FIELDS=['nombre','codigo','categoria','marca','proveedor','costo','precio','itbis','stock','stock_min','unidad','color','talla','descripcion','notas','estado'];
 function clearForm(){FIELDS.forEach(f=>{const el=document.getElementById('f_'+f);if(!el)return;el.tagName==='SELECT'?el.selectedIndex=0:el.value='';});document.getElementById('f_itbis').value='18';document.getElementById('f_unidad').value='Unidad';document.getElementById('f_estado').value='Activo';resetImgBox();document.getElementById('imgFile').value='';}
 function setForm(a){FIELDS.forEach(f=>{const el=document.getElementById('f_'+f);if(el)el.value=a[f]??'';});}
 function resetImgBox(){document.getElementById('imgBox').innerHTML='<span style="font-size:28px">📷</span><span class="upload-hint">Haz clic para seleccionar imagen</span><div class="overlay"><span style="font-size:20px">📷</span><span>Cambiar imagen</span></div>';}
-function previewImage(input){const file=input.files[0];if(!file)return;imgFile=file;const r=new FileReader();r.onload=e=>{document.getElementById('imgBox').innerHTML=`<img src="${e.target.result}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><div class="overlay"><span>📷</span><span>Cambiar imagen</span></div>`;};r.readAsDataURL(file);}
+function previewImage(input){const file=input.files[0];if(!file)return;newImgFile=file;const r=new FileReader();r.onload=e=>{document.getElementById('imgBox').innerHTML=`<img src="${e.target.result}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"><div class="overlay"><span>📷</span><span>Cambiar imagen</span></div>`;};r.readAsDataURL(file);}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function toast(msg,type='ok'){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast show ${type}`;setTimeout(()=>t.classList.remove('show'),2800);}
 
-loadArticles();
+initApp();
 </script>
 </body>
 </html>
